@@ -1,0 +1,111 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<title>Konum Kodlayıcı - Base36 Kısa Kod</title>
+<style>
+  #map { height: 400px; width: 100%; margin-top: 20px; }
+  input, button { padding: 6px; margin: 5px 0; }
+  a#navigateLink { display: inline-block; margin-top: 10px; font-weight: bold; color: green; }
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+</head>
+<body>
+<h2>📍 Konum Kodlayıcı ve Çözücü (Base36)</h2>
+<button onclick="getLocation()">Konumumu Al ve Koda Çevir</button>
+<p>
+  <strong>Oluşturulan Kod:</strong> <span id="code">Henüz yok</span>
+  <button onclick="copyCode()">Kodu Kopyala</button>
+</p>
+<h3>🧩 Kodu Çöz ve Haritada Göster</h3>
+<input type="text" id="codeInput" placeholder="Kod gir" />
+<button onclick="decodeCode()">Kodu Çöz</button>
+<p><a id="navigateLink" href="#" target="_blank" style="display:none;">🧭 Google Haritalar'da Yol Tarifi Al</a></p>
+<div id="map"></div>
+
+<script>
+let map;
+
+// Base36 encode / decode fonksiyonları
+function base36encode(num) {
+  const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
+  if(num === 0) return "0";
+  let s = "";
+  while(num > 0) {
+    s = alphabet[num % 36] + s;
+    num = Math.floor(num / 36);
+  }
+  return s;
+}
+function base36decode(str) {
+  const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
+  let num = 0;
+  for(let i=0; i<str.length; i++) {
+    num = num * 36 + alphabet.indexOf(str[i]);
+  }
+  return num;
+}
+
+function getLocation() {
+  if(navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(showPosition);
+  } else {
+    alert("Tarayıcınız konum bilgisini desteklemiyor.");
+  }
+}
+function showPosition(position) {
+  const latInt = Math.round(position.coords.latitude * 100000);
+  const lonInt = Math.round(position.coords.longitude * 100000);
+  // Birleştir
+  const combined = latInt * 1e7 + lonInt;
+  const code = base36encode(combined);
+  document.getElementById("code").textContent = code;
+  updateNavLink(position.coords.latitude, position.coords.longitude);
+  showMap(position.coords.latitude, position.coords.longitude);
+}
+function showMap(lat, lon) {
+  if(map) {
+    map.setView([lat, lon], 13);
+  } else {
+    map = L.map('map').setView([lat, lon], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+  }
+  map.eachLayer(layer => {
+    if(layer instanceof L.Marker) map.removeLayer(layer);
+  });
+  L.marker([lat, lon]).addTo(map).bindPopup('Konum burada').openPopup();
+}
+function decodeCode() {
+  try {
+    const code = document.getElementById("codeInput").value.trim().toLowerCase();
+    const combined = base36decode(code);
+    // Ayrıştır
+    const latInt = Math.floor(combined / 1e7);
+    const lonInt = combined % 1e7;
+    const lat = latInt / 100000;
+    const lon = lonInt / 100000;
+    if(isNaN(lat) || isNaN(lon)) throw "Geçersiz kod";
+    updateNavLink(lat, lon);
+    showMap(lat, lon);
+  } catch(e) {
+    alert("Kod çözülemedi. Lütfen geçerli bir kod girin.");
+  }
+}
+function copyCode() {
+  const code = document.getElementById("code").textContent;
+  if(code && code !== "Henüz yok") {
+    navigator.clipboard.writeText(code).then(() => alert("Kod panoya kopyalandı!"), () => alert("Kopyalama başarısız."));
+  } else alert("Henüz bir kod oluşturulmadı.");
+}
+function updateNavLink(lat, lon) {
+  const link = document.getElementById("navigateLink");
+  link.href = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+  link.style.display = "inline-block";
+}
+</script>
+</body>
+</html>
